@@ -1,0 +1,13 @@
+
+	
+|	WHILE_head stmt { () }
+;
+	
+	WHILE_head: 	WHILE test DO	{ () }
+;
+
+	IF not-next-to-a-beeper THEN
+	IF not-next-to-a-beeper THEN
+		move
+	ELSE
+		turnleft;
