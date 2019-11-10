@@ -5,6 +5,17 @@ open Common
 open Comp
 open Karel
 
+let gen_while(b, a) =
+	gen (GOTO b);
+	backpatch a (nextquad ())
+	
+	
+let gen_iter(i,a) =
+	let m = new_temp() in
+	gen (SETI (m, 1));
+	gen (ADD (i, m, i));
+	gen (GOTO (a));
+	backpatch a (nextquad ())
 
 %}
 
@@ -80,98 +91,144 @@ stmts:		stmt			{ () }
 ;
 
 stmt:		BEGIN stmts END { () }
-|			ITERATE INT TIMES stmt { () }
+|			iteration_head stmt { ( gen_iter $1 ) }
 |			open_stmt { () }
 |			closed_stmt { () }
 ;
 
+if_test: 	test
+				{
+					let v' = new_temp () in
+					let _ = gen (SETI (v', 0)) in
+					let a = nextquad () in
+					let _ = gen (GOTO_EQ (0, $1, v')) in
+					a
+				}
+;
+					
 test: 		NEXT_TO_A_BEEPER
 				{
-					gen (INVOKE (next_beeper, 0, 0));
+					let r = new_temp() in
+					gen (INVOKE (next_beeper, r, 0));
+					r
 				}
 |			NOT_NEXT_TO_A_BEEPER
 				{
-					gen (INVOKE (no_next_beeper, 0, 0));
+					let r = new_temp() in
+					gen (INVOKE (no_next_beeper, r, 0));
+					r
 				}
 				
 |			FRONT_IS_CLEAR
 				{
-					gen (INVOKE (is_clear, front, 0));
+					let r = new_temp() in
+					gen (INVOKE (is_clear, front, r));
+					r
 				}
 				
 |			FRONT_IS_BLOCKED
 				{
-					gen (INVOKE (is_blocked, front, 0));
+					let r = new_temp() in
+					gen (INVOKE (is_blocked, front, r));
+					r
 				}
 				
 |			LEFT_IS_CLEAR
 				{
-					gen (INVOKE (is_clear, left, 0));
+					let r = new_temp() in
+					gen (INVOKE (is_clear, left, r));
+					r
 				}
 				
 |			LEFT_IS_BLOCKED
 				{
-					gen (INVOKE (is_blocked, left, 0));
+					let r = new_temp() in
+					gen (INVOKE (is_blocked, left, r));
+					r
 				}
 				
 |			RIGHT_IS_CLEAR
 				{
-					gen (INVOKE (is_clear, right, 0));
+					let r = new_temp() in
+					gen (INVOKE (is_clear, right, r));
+					r
 				}
 				
 |			RIGHT_IS_BLOCKED
 				{
-					gen (INVOKE (is_blocked, right, 0));
+					let r = new_temp() in
+					gen (INVOKE (is_blocked, right, r));
+					r
 				}
 				
 |			FACING_NORTH
 				{
-					gen (INVOKE (facing, north, 0));
+					let r = new_temp() in
+					gen (INVOKE (facing, north, r));
+					r
 				}
 				
 |			NOT_FACING_NORTH
 				{
-					gen (INVOKE (not_facing, north, 0));
+					let r = new_temp() in
+					gen (INVOKE (not_facing, north, r));
+					r
 				}
 				
 |			FACING_EAST
 				{
-					gen (INVOKE (facing, east, 0));
+					let r = new_temp() in
+					gen (INVOKE (facing, east, r));
+					r
 				}
 				
 |			NOT_FACING_EAST
 				{
-					gen (INVOKE (not_facing, east, 0));
+					let r = new_temp() in
+					gen (INVOKE (not_facing, east, r));
+					r
 				}
 				
 |			FACING_SOUTH
 				{
-					gen (INVOKE (facing, south, 0));
+					let r = new_temp() in
+					gen (INVOKE (facing, south, r));
+					r
 				}
 				
 |			NOT_FACING_SOUTH
 				{
-					gen (INVOKE (not_facing, south, 0));
+					let r = new_temp() in
+					gen (INVOKE (not_facing, south, r));
+					r
 				}
 				
 |			FACING_WEST
 				{
-					gen (INVOKE (facing, west, 0));
+					let r = new_temp() in
+					gen (INVOKE (facing, west, r));
+					r
 				}
 				
 |			NOT_FACING_WEST
 				{
-					gen (INVOKE (not_facing, west, 0));
+					let r = new_temp() in
+					gen (INVOKE (not_facing, west, r));
+					r
 				}
 				
 |			ANY_BEEPERS_IN_BEEPER_BAG
 				{
-					gen (INVOKE (any_beeper, 0, 0));
+					let r = new_temp() in
+					gen (INVOKE (any_beeper, r, 0));
+					r
 				}
 				
 |			NO_BEEPERS_IN_BEEPER_BAG
 				{
-					gen (INVOKE (no_beeper, 0, 0));
+					let r = new_temp() in
+					gen (INVOKE (no_beeper, r, 0));
+					r
 				}
 ;
 
@@ -194,12 +251,37 @@ simple_stmt: TURN_LEFT
 				
 ;
 
+while_head: WHILE mark test DO
+				{
+					let t = new_temp () in
+					gen (SETI (t, 0));
+					let a = nextquad () in
+					gen (GOTO_EQ(0, $3, t));
+					($2, a)
+				}
+;
+
+iteration_head: ITERATE INT TIMES stmt
+				{
+					let t = new_temp () in
+					let i = new_temp () in
+					gen (SETI (i, 0));
+					gen (SETI (t, $2));
+					let a = nextquad () in
+					gen (GOTO_GE(0, i, t));
+					(i, a)	
+				}
+;
+
+mark:
+				{ nextquad () }
+;
 
 
-open_stmt:		IF test THEN closed_stmt { () }
-|				IF test THEN open_stmt { () }
-|				IF test THEN closed_stmt ELSE open_stmt { () }
-|				WHILE test DO open_stmt { () }
+open_stmt:		IF if_test THEN closed_stmt { backpatch $2 (nextquad ()) }
+|				IF if_test THEN open_stmt { ( backpatch $2 (nextquad ())) }
+|				IF if_test THEN closed_stmt ELSE open_stmt { () }
+|				while_head open_stmt { gen_while $1 }
 ;
 
 define_new: 	DEFINE_NEW_INSTRUCTION ID AS stmts	
@@ -216,6 +298,6 @@ defines: 		/* empty */		{ () }
 ;
 
 closed_stmt:	simple_stmt 		{ () }
-|				IF test THEN closed_stmt ELSE closed_stmt { () }
-|				WHILE test DO closed_stmt { () }		
+|				IF if_test THEN closed_stmt ELSE closed_stmt { () }
+|				while_head closed_stmt { gen_while $1 }
 ;
